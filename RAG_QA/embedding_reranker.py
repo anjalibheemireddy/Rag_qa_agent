@@ -1,20 +1,21 @@
-# main.py
+#importss
 import os
+
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 from sentence_transformers import CrossEncoder
-import os
+
 
 from dotenv import load_dotenv
 load_dotenv()  
 
 BGE_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 
-# --------------------------------------------------------
-# Load vectorstore
-# --------------------------------------------------------
+
+# Loading vectors
+
 def load_vectorstore(file_path):
     loader = TextLoader("file_path", encoding="utf-8")
     documents = loader.load()
@@ -24,7 +25,8 @@ def load_vectorstore(file_path):
         separators=["\n\n", "\n", ".", " ", ""]
     )
     texts = text_splitter.split_documents(documents)
-    # Remove duplicates
+
+    
     unique_texts = []
     seen = set()
     for doc in texts:
@@ -39,29 +41,26 @@ def load_vectorstore(file_path):
     return vectordb
 
 
-# --------------------------------------------------------
+
 # Retrieve chunks (before reranking)
-# --------------------------------------------------------
 def retrieve_chunks(vectordb, query, top_k):
     return vectordb.similarity_search_with_score(query, k=top_k)
 
 
-# --------------------------------------------------------
-# Rerank using BGE CrossEncoder
-# --------------------------------------------------------
+
+# Reranking  using BGE CrossEncoder
+
 def rerank_chunks(query, retrieved_docs, rerank_top_k):
     reranker = CrossEncoder(
         model_name=BGE_RERANKER_MODEL,
-        device="cpu"  # change to "cuda" if available
+        device="cpu"  
     )
 
-    # Prepare query-doc pairs for scoring
     pairs = [(query, doc.page_content) for doc, _ in retrieved_docs]
 
-    # CrossEncoder gives relevance scores
+   
     rerank_scores = reranker.predict(pairs)
 
-    # Attach scores & sort
     reranked = [
         (retrieved_docs[i][0], rerank_scores[i])  
         for i in range(len(rerank_scores))
@@ -72,20 +71,6 @@ def rerank_chunks(query, retrieved_docs, rerank_top_k):
     # Apply top_k after reranking
     return reranked[:rerank_top_k]
 
-
-# --------------------------------------------------------
-# Generate answer
-# --------------------------------------------------------
-#def generate_answer(reranked_docs, query, model_name):
- #   llm = ChatOpenAI(model=model_name)
-
-  #  context = "\n".join([doc.page_content for doc, _ in reranked_docs])
-
-  #  prompt = f"""
-   # Use the context below to answer the question.
-
-   # Context:
-   # {context}
 
    # Question: {query}
 
@@ -98,7 +83,6 @@ def rerank_chunks(query, retrieved_docs, rerank_top_k):
 def generate_answer(reranked_docs, query, model_name="gpt-4o-mini"):
     llm = ChatOpenAI(model=model_name, temperature=0)
 
-    # unpack (doc, score)
     context = "\n\n".join(doc.page_content for doc, _ in reranked_docs)
 
     prompt = f"""
